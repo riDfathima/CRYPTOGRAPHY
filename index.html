@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Key Path 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <style>
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        .futuristic-font {
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 1px;
+        }
+        .blue-shadow {
+            box-shadow: 0 10px 15px -3px rgba(56, 182, 255, 0.3), 0 4px 6px -2px rgba(56, 182, 255, 0.2);
+        }
+        .model-container {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+        }
+        .number-badge {
+            position: absolute;
+            bottom: -10px;
+            right: -10px;
+            background: #3b82f6;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .glow-text {
+            text-shadow: 0 0 5px #3b82f6, 0 0 10px #3b82f6;
+        }
+        .input-field {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid #3b82f6;
+            color: white;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        
+        /* Abstract background lines */
+        .lines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+            opacity: 0.1;
+            overflow: hidden;
+        }
+        .line {
+            position: absolute;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(236, 72, 153, 0) 0%, rgba(236, 72, 153, 0.8) 50%, rgba(236, 72, 153, 0) 100%);
+            transform-origin: left center;
+        }
+        
+        /* Landing page styles */
+        .landing-container {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
+        .landing-title {
+            font-size: 4rem;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 2rem;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        /* Star rating styles */
+        .rating-container {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            z-index: 100;
+        }
+        .rating-box {
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid #ec4899;
+            border-radius: 12px;
+            padding: 15px 25px;
+            box-shadow: 0 10px 15px -3px rgba(236, 72, 153, 0.3), 0 4px 6px -2px rgba(236, 72, 153, 0.2);
+            backdrop-filter: blur(5px);
+        }
+        .stars {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .star {
+            font-size: 28px;
+            color: #4b5563;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .star:hover {
+            transform: scale(1.2);
+        }
+        .star.active {
+            color: #ec4899;
+            text-shadow: 0 0 10px rgba(236, 72, 153, 0.7);
+        }
+        .rating-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #e2e8f0;
+            font-family: 'Orbitron', sans-serif;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <!-- Abstract background lines -->
+    <div class="lines" id="lines"></div>
+    
+    <!-- Step 1: Security Question -->
+    <div id="question-container" class="bg-slate-800 rounded-xl p-8 max-w-md w-full blue-shadow border border-slate-700">
+        <h1 class="text-3xl font-bold text-center text-blue-400 mb-6 futuristic-font glow-text">KEY PATH 3D</h1>
+        
+        <div class="mb-6">
+            <label class="block text-blue-300 mb-4 futuristic-font text-xl">Security Verification</label>
+            <p class="text-slate-300 mb-4">Why did the chicken cross the road?</p>
+            <input type="text" id="security-answer" class="w-full px-4 py-3 rounded-lg input-field futuristic-font" placeholder="Enter response...">
+        </div>
+        <button onclick="verifyAnswer()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 futuristic-font text-lg blue-shadow hover:scale-[1.02]">
+            VERIFY
+        </button>
+    </div>
+
+    <!-- Step 2: 3D Model Sequence -->
+    <div id="sequence-container" class="hidden bg-slate-800 rounded-xl p-8 max-w-3xl w-full blue-shadow border border-slate-700">
+        <h1 class="text-3xl font-bold text-center text-blue-400 mb-6 futuristic-font glow-text">SEQUENCE VERIFICATION</h1>
+        
+        <div class="mb-6 text-center">
+            <p class="text-blue-300 mb-2 futuristic-font">Your access sequence:</p>
+            <div id="sequence-display" class="text-2xl futuristic-font text-blue-400 mb-6"></div>
+            <p class="text-slate-300">Select the 3D models in the correct sequence</p>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <!-- Models will be dynamically inserted here -->
+        </div>
+        
+        <div id="sequence-status" class="mt-6 text-center futuristic-font text-lg"></div>
+        
+        <button onclick="checkSequence()" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition futuristic-font blue-shadow">
+            VERIFY SEQUENCE
+        </button>
+    </div>
+
+    <!-- Step 3: Login Page -->
+    <div id="login-container" class="hidden bg-slate-800 rounded-xl p-8 max-w-md w-full blue-shadow border border-slate-700">
+        <h1 class="text-3xl font-bold text-center text-blue-400 mb-6 futuristic-font glow-text">FINAL ACCESS</h1>
+        
+        <div class="mb-6">
+            <label class="block text-blue-300 mb-2 futuristic-font">Username</label>
+            <input type="text" id="username" class="w-full px-4 py-3 rounded-lg input-field mb-4", placeholder="Enter username">
+            
+            <label class="block text-blue-300 mb-2 futuristic-font">Password</label>
+            <input type="password" id="password" class="w-full px-4 py-3 rounded-lg input-field mb-6", placeholder="Enter password">
+        </div>
+        
+        <button onclick="login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition futuristic-font blue-shadow">
+            LOGIN
+        </button>
+    </div>
+    
+    <!-- Step 4: Landing Page -->
+    <div id="landing-page" class="hidden landing-container">
+        <div class="particles" id="particles"></div>
+        <h1 class="landing-title futuristic-font">SeqShape</h1>
+        <p class="text-blue-300 text-xl mb-8 max-w-2xl">Welcome to the SeqShape. Your access has been verified through multi-dimensional authentication.</p>
+        <div class="grid grid-cols-3 gap-8 opacity-80">
+            <div class="bg-slate-800 p-6 rounded-xl blue-shadow border border-slate-700">
+                <div class="text-blue-400 text-4xl mb-4">🔒</div>
+                <h3 class="text-xl text-white mb-2 futuristic-font">Secure</h3>
+                <p class="text-slate-300">Protecting your data</p>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl blue-shadow border border-slate-700">
+                <div class="text-blue-400 text-4xl mb-4">⚡</div>
+                <h3 class="text-xl text-white mb-2 futuristic-font">Fast</h3>
+                <p class="text-slate-300">Fast processing speeds</p>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl blue-shadow border border-slate-700">
+                <div class="text-blue-400 text-4xl mb-4">🌐</div>
+                <h3 class="text-xl text-white mb-2 futuristic-font">Global</h3>
+                <p class="text-slate-300">Access from anywhere</p>
+            </div>
+        </div>
+        
+        <!-- Rating Container (now inside landing page) -->
+        <div class="rating-container mt-12">
+            <div class="rating-box">
+                <div class="rating-text futuristic-font">How did you like this project?</div>
+                <div class="stars">
+                    <div class="star" data-rating="1">★</div>
+                    <div class="star" data-rating="2">★</div>
+                    <div class="star" data-rating="3">★</div>
+                    <div class="star" data-rating="4">★</div>
+                    <div class="star" data-rating="5">★</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let generatedSequence = [];
+        let selectedSequence = [];
+        const models = [
+            { id: 'cube', name: 'Cube', color: 0x3b82f6, number: 1 },
+            { id: 'sphere', name: 'Sphere', color: 0x6366f1, number: 2 },
+            { id: 'cone', name: 'Cone', color: 0x8b5cf6, number: 3 },
+            { id: 'torus', name: 'Torus', color: 0xec4899, number: 4 },
+            { id: 'cylinder', name: 'Cylinder', color: 0xf43f5e, number: 5 },
+            { id: 'octahedron', name: 'Octahedron', color: 0xf97316, number: 6 }
+        ];
+        
+        // Initialize abstract background lines
+        function initBackgroundLines() {
+            const linesContainer = document.getElementById('lines');
+            const lineCount = 30;
+            
+            for (let i = 0; i < lineCount; i++) {
+                const line = document.createElement('div');
+                line.className = 'line';
+                
+                // Random positioning and rotation
+                const top = Math.random() * 100;
+                const rotation = Math.random() * 180 - 90;
+                const width = 100 + Math.random() * 100;
+                const delay = Math.random() * 5;
+                
+                line.style.top = `${top}%`;
+                line.style.transform = `rotate(${rotation}deg)`;
+                line.style.width = `${width}%`;
+                line.style.animation = `float ${3 + Math.random() * 7}s ${delay}s infinite linear`;
+                
+                linesContainer.appendChild(line);
+            }
+            
+            // Add CSS animation dynamically
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes float {
+                    0% { transform: rotate(${Math.random() * 360}deg) translateX(-100%); }
+                    100% { transform: rotate(${Math.random() * 360}deg) translateX(100%); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // Initialize particles for landing page
+        function initParticles() {
+            const container = document.getElementById('particles');
+            const particleCount = 50;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'absolute rounded-full bg-blue-400 opacity-20';
+                
+                // Random size, position and animation
+                const size = 2 + Math.random() * 5;
+                const posX = Math.random() * 100;
+                const posY = Math.random() * 100;
+                const duration = 10 + Math.random() * 20;
+                const delay = Math.random() * 10;
+                
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.left = `${posX}%`;
+                particle.style.top = `${posY}%`;
+                particle.style.animation = `particleMove ${duration}s ${delay}s infinite linear`;
+                
+                container.appendChild(particle);
+            }
+            
+            // Add CSS animation dynamically
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes particleMove {
+                    0% { transform: translate(0, 0); opacity: 0; }
+                    10% { opacity: 0.2; }
+                    90% { opacity: 0.2; }
+                    100% { transform: translate(${Math.random() * 200 - 100}px, ${Math.random() * 200 - 100}px); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // Initialize star rating functionality
+        function initStarRating() {
+            const stars = document.querySelectorAll('.star');
+            let currentRating = 0;
+            
+            stars.forEach(star => {
+                star.addEventListener('click', () => {
+                    const rating = parseInt(star.getAttribute('data-rating'));
+                    currentRating = rating;
+                    
+                    // Update stars appearance
+                    stars.forEach((s, index) => {
+                        if (index < rating) {
+                            s.classList.add('active');
+                        } else {
+                            s.classList.remove('active');
+                        }
+                    });
+                    
+                    // Show thank you message (you could send this to a server in a real app)
+                    setTimeout(() => {
+                        const ratingText = document.querySelector('.rating-text');
+                        ratingText.textContent = `Thank you for your ${rating} star rating!`;
+                        
+                        // Reset after 3 seconds
+                        setTimeout(() => {
+                            ratingText.textContent = 'How did you like this project?';
+                        }, 3000);
+                    }, 500);
+                });
+                
+                // Add hover effect
+                star.addEventListener('mouseover', () => {
+                    const rating = parseInt(star.getAttribute('data-rating'));
+                    
+                    stars.forEach((s, index) => {
+                        if (index < rating) {
+                            s.classList.add('active');
+                        }
+                    });
+                });
+                
+                star.addEventListener('mouseout', () => {
+                    stars.forEach((s, index) => {
+                        if (index >= currentRating) {
+                            s.classList.remove('active');
+                        }
+                    });
+                });
+            });
+        }
+        
+        // Initialize on page load
+        window.onload = function() {
+            initBackgroundLines();
+            initParticles();
+        };
+        
+        // Step 1: Verify security answer
+        function verifyAnswer() {
+            const answer = document.getElementById('security-answer').value.toLowerCase().trim();
+            if (answer === "it was bored" || answer === "it was bored.") {
+                // Generate random sequence (3-5 numbers between 1-6)
+                const sequenceLength = 3 + Math.floor(Math.random() * 3);
+                generatedSequence = [];
+                for (let i = 0; i < sequenceLength; i++) {
+                    generatedSequence.push(1 + Math.floor(Math.random() * 6));
+                }
+                
+                // Display sequence to user
+                document.getElementById('sequence-display').textContent = generatedSequence.join(' - ');
+                
+                // Show sequence container and hide question container
+                document.getElementById('question-container').classList.add('hidden');
+                document.getElementById('sequence-container').classList.remove('hidden');
+                
+                // Initialize 3D models
+                init3DModels();
+            } else {
+                alert("Verification failed. Please try again.");
+            }
+        }
+        
+        // Initialize 3D models for sequence verification
+        function init3DModels() {
+            const container = document.querySelector('#sequence-container .grid');
+            container.innerHTML = '';
+            
+            // Shuffle models array
+            const shuffledModels = [...models].sort(() => Math.random() - 0.5);
+            
+            shuffledModels.forEach(model => {
+                const modelElement = document.createElement('div');
+                modelElement.className = 'relative bg-slate-700 hover:bg-slate-600 p-4 rounded-lg blue-shadow transition cursor-pointer';
+                modelElement.onclick = () => selectModel(model.number);
+                
+                const modelContainer = document.createElement('div');
+                modelContainer.className = 'model-container';
+                modelContainer.id = `${model.id}-container`;
+                
+                const modelName = document.createElement('p');
+                modelName.className = 'text-center text-blue-300 mt-2 futuristic-font';
+                modelName.textContent = model.name;
+                
+                const numberBadge = document.createElement('div');
+                numberBadge.className = 'number-badge';
+                numberBadge.textContent = model.number;
+                
+                modelElement.appendChild(modelContainer);
+                modelElement.appendChild(modelName);
+                modelElement.appendChild(numberBadge);
+                container.appendChild(modelElement);
+                
+                // Create 3D model
+                create3DModel(`${model.id}-container`, model.color, model.id);
+            });
+        }
+        
+        // Create 3D models
+        function create3DModel(containerId, color, shape) {
+            const container = document.getElementById(containerId);
+            
+            // Clear previous content
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+            
+            // Create Three.js scene
+            const scene = new THREE.Scene();
+            scene.background = null;
+            const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(150, 150);
+            container.appendChild(renderer.domElement);
+            
+            // Create different shapes
+            let geometry;
+            switch(shape) {
+                case 'cube':
+                    geometry = new THREE.BoxGeometry(5, 5, 5);
+                    break;
+                case 'sphere':
+                    geometry = new THREE.SphereGeometry(5, 32, 32);
+                    break;
+                case 'cone':
+                    geometry = new THREE.ConeGeometry(5, 8, 32);
+                    break;
+                case 'torus':
+                    geometry = new THREE.TorusGeometry(4, 1.5, 16, 100);
+                    break;
+                case 'cylinder':
+                    geometry = new THREE.CylinderGeometry(4, 4, 8, 32);
+                    break;
+                case 'octahedron':
+                    geometry = new THREE.OctahedronGeometry(5);
+                    break;
+                default:
+                    geometry = new THREE.BoxGeometry(5, 5, 5);
+            }
+            
+            const material = new THREE.MeshPhongMaterial({ 
+                color: color,
+                shininess: 100,
+                specular: 0x111111
+            });
+            
+            const mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            camera.position.z = 10;
+            
+            // Add controls
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableZoom = false;
+            controls.enablePan = false;
+            
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                mesh.rotation.x += 0.005;
+                mesh.rotation.y += 0.005;
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+        
+        // Select model for sequence
+        function selectModel(number) {
+            selectedSequence.push(number);
+            updateSequenceStatus();
+        }
+        
+        // Update sequence status display
+        function updateSequenceStatus() {
+            const statusElement = document.getElementById('sequence-status');
+            statusElement.textContent = `Selected: ${selectedSequence.join(' - ')}`;
+            statusElement.className = 'mt-6 text-center futuristic-font text-lg text-blue-400';
+        }
+        
+        // Check if selected sequence matches generated sequence
+        function checkSequence() {
+            const statusElement = document.getElementById('sequence-status');
+            
+            if (selectedSequence.length !== generatedSequence.length) {
+                statusElement.textContent = "Sequence length doesn't match!";
+                statusElement.className = 'mt-6 text-center futuristic-font text-lg text-red-500';
+                selectedSequence = [];
+                return;
+            }
+            
+            let correct = true;
+            for (let i = 0; i < generatedSequence.length; i++) {
+                if (selectedSequence[i] !== generatedSequence[i]) {
+                    correct = false;
+                    break;
+                }
+            }
+            
+            if (correct) {
+                statusElement.textContent = "✓ Sequence verified! Proceeding to login...";
+                statusElement.className = 'mt-6 text-center futuristic-font text-lg text-green-500';
+                
+                // After 1.5 seconds, show login page
+                setTimeout(() => {
+                    document.getElementById('sequence-container').classList.add('hidden');
+                    document.getElementById('login-container').classList.remove('hidden');
+                }, 1500);
+            } else {
+                statusElement.textContent = "✗ Incorrect sequence! Try again.";
+                statusElement.className = 'mt-6 text-center futuristic-font text-lg text-red-500';
+                selectedSequence = [];
+            }
+        }
+        
+        // Login function
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (username && password) {
+                // Hide login container and show landing page
+                document.getElementById('login-container').classList.add('hidden');
+                document.getElementById('landing-page').classList.remove('hidden');
+                
+                // Initialize star rating after showing landing page
+                initStarRating();
+            } else {
+                alert("Please enter both username and password");
+            }
+        }
+    </script>
+</body>
+</html>
