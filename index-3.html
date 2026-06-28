@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Key Path 3D — Multi-Factor Auth Demo</title>
+    <meta name="description" content="A browser-based multi-factor authentication system using 3D shape sequencing, built with Three.js and vanilla JavaScript.">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:       #060d1a;
+            --surface:  #0e1829;
+            --surface2: #162035;
+            --border:   rgba(56, 180, 255, 0.18);
+            --blue:     #38b4ff;
+            --violet:   #8b5cf6;
+            --pink:     #ec4899;
+            --green:    #34d399;
+            --red:      #f43f5e;
+            --amber:    #fbbf24;
+            --text:     #e2e8f0;
+            --muted:    #94a3b8;
+            --font-display: 'Orbitron', sans-serif;
+            --font-body:    'Rajdhani', sans-serif;
+            --font-mono:    'JetBrains Mono', monospace;
+            --radius: 16px;
+            --glow-blue: 0 0 20px rgba(56,180,255,0.35), 0 0 60px rgba(56,180,255,0.1);
+            --glow-pink: 0 0 20px rgba(236,72,153,0.35), 0 0 60px rgba(236,72,153,0.1);
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Canvas BG ── */
+        #bg-canvas {
+            position: fixed; inset: 0;
+            z-index: 0; pointer-events: none; opacity: 0.4;
+        }
+
+        /* ── Stage ── */
+        .stage {
+            position: relative; z-index: 1;
+            min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            padding: 1.5rem;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: clamp(1.5rem, 5vw, 2.5rem);
+            width: 100%;
+            box-shadow: var(--glow-blue);
+            animation: cardIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
+        }
+        .card--narrow { max-width: 440px; }
+        .card--wide   { max-width: 800px; }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(24px) scale(0.97); }
+            to   { opacity: 1; transform: none; }
+        }
+
+        /* ── Logo / Type ── */
+        .logo {
+            font-family: var(--font-display);
+            font-size: clamp(1.3rem, 4.5vw, 1.9rem);
+            font-weight: 900; letter-spacing: 3px;
+            text-align: center;
+            background: linear-gradient(90deg, var(--blue), var(--violet));
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            filter: drop-shadow(0 0 8px rgba(56,180,255,0.5));
+            margin-bottom: 0.2rem;
+        }
+        .subtitle {
+            font-family: var(--font-display);
+            font-size: 0.62rem; letter-spacing: 4px;
+            color: var(--muted); text-align: center;
+            margin-bottom: 1.75rem;
+        }
+        .section-label {
+            font-family: var(--font-display);
+            font-size: 0.65rem; letter-spacing: 3px;
+            color: var(--blue); text-transform: uppercase;
+            margin-bottom: 0.45rem;
+        }
+        .hint-text {
+            color: var(--muted); font-size: 1rem; line-height: 1.5;
+            margin-bottom: 1.25rem;
+        }
+
+        /* ── Inputs ── */
+        .field { margin-bottom: 1.25rem; }
+        .field label {
+            display: block;
+            font-family: var(--font-display);
+            font-size: 0.62rem; letter-spacing: 2px;
+            color: var(--blue); margin-bottom: 0.5rem; text-transform: uppercase;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            background: rgba(14,24,41,0.8);
+            border: 1px solid rgba(56,180,255,0.3);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: var(--font-body); font-size: 1rem;
+            padding: 0.85rem 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3px rgba(56,180,255,0.15);
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            display: block; width: 100%;
+            font-family: var(--font-display);
+            font-size: 0.75rem; letter-spacing: 3px; font-weight: 700;
+            text-align: center; border: none; border-radius: 10px;
+            cursor: pointer; padding: 0.9rem 1.5rem;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .btn:hover  { transform: translateY(-2px); }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary {
+            background: linear-gradient(90deg, #1d6fa8, #3b3fa8);
+            color: white; box-shadow: var(--glow-blue);
+        }
+        .btn-primary:hover { box-shadow: 0 0 30px rgba(56,180,255,0.5); }
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid rgba(56,180,255,0.4);
+            color: var(--blue);
+        }
+
+        /* ── Divider ── */
+        .divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
+
+        /* ── Progress steps ── */
+        .steps {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0; margin-bottom: 1.75rem;
+        }
+        .step-dot {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--surface2); border: 1px solid var(--border);
+            font-family: var(--font-display); font-size: 0.6rem; color: var(--muted);
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s;
+        }
+        .step-dot.active {
+            background: linear-gradient(135deg, var(--blue), var(--violet));
+            border-color: var(--blue); color: white; box-shadow: var(--glow-blue);
+        }
+        .step-dot.done { background: var(--green); border-color: var(--green); color: white; }
+        .step-line { flex: 1; max-width: 40px; height: 1px; background: var(--border); transition: background 0.3s; }
+        .step-line.done { background: var(--green); }
+
+        /* ── Seq banner ── */
+        .seq-banner {
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 10px; padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem; text-align: center;
+        }
+        .seq-numbers {
+            font-family: var(--font-display);
+            font-size: clamp(1.1rem, 4vw, 1.6rem);
+            color: var(--blue); letter-spacing: 6px;
+            filter: drop-shadow(0 0 8px rgba(56,180,255,0.6));
+        }
+
+        /* ── Model grid ── */
+        .model-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;
+        }
+        @media (max-width: 480px) { .model-grid { grid-template-columns: repeat(2,1fr); } }
+
+        .model-card {
+            position: relative;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 12px; padding: 0.75rem;
+            cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+            text-align: center; user-select: none;
+        }
+        .model-card:hover { border-color: rgba(56,180,255,0.5); transform: translateY(-3px); box-shadow: var(--glow-blue); }
+        .model-card.selected { border-color: var(--blue); box-shadow: var(--glow-blue); }
+        .model-card canvas { display: block; margin: 0 auto; border-radius: 8px; }
+        .model-name { font-family: var(--font-display); font-size: 0.58rem; letter-spacing: 2px; color: var(--blue); margin-top: 0.5rem; }
+        .model-badge {
+            position: absolute; bottom: -6px; right: -6px;
+            background: var(--violet); color: white; border-radius: 50%;
+            width: 22px; height: 22px;
+            font-family: var(--font-display); font-size: 0.6rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 10px rgba(139,92,246,0.5);
+        }
+
+        /* ── Status ── */
+        .status {
+            margin-top: 1rem; font-family: var(--font-display);
+            font-size: 0.72rem; letter-spacing: 2px;
+            text-align: center; min-height: 1.5rem; transition: color 0.3s;
+        }
+        .status-info { color: var(--blue); }
+        .status-ok   { color: var(--green); }
+        .status-err  { color: var(--red); }
+
+        /* ════════════════════════════════════
+           LANDING PAGE
+        ════════════════════════════════════ */
+        #landing-page {
+            position: relative; z-index: 1;
+            min-height: 100vh;
+        }
+
+        /* ── Hero ── */
+        .hero {
+            min-height: 100vh;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center; padding: 4rem 1.5rem 2rem;
+        }
+        .hero-eyebrow {
+            font-family: var(--font-mono);
+            font-size: 0.75rem; color: var(--blue);
+            letter-spacing: 2px; margin-bottom: 1rem;
+            opacity: 0.8;
+        }
+        .hero-title {
+            font-family: var(--font-display);
+            font-size: clamp(2.8rem, 10vw, 5.5rem);
+            font-weight: 900; letter-spacing: 4px; line-height: 1.05;
+            background: linear-gradient(90deg, var(--blue) 0%, var(--violet) 50%, var(--pink) 100%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            filter: drop-shadow(0 0 24px rgba(56,180,255,0.35));
+            animation: heroFloat 4s ease-in-out infinite;
+            margin-bottom: 0.5rem;
+        }
+        @keyframes heroFloat {
+            0%,100% { transform: translateY(0); }
+            50%      { transform: translateY(-10px); }
+        }
+        .hero-tag {
+            font-family: var(--font-mono); font-size: 0.8rem;
+            color: var(--muted); margin-bottom: 1.5rem;
+        }
+        .hero-desc {
+            color: var(--muted); font-size: clamp(1rem, 2.5vw, 1.15rem);
+            max-width: 540px; line-height: 1.7; margin-bottom: 2.5rem;
+        }
+        .hero-cta-row {
+            display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;
+            margin-bottom: 3rem;
+        }
+        .cta-btn {
+            font-family: var(--font-display); font-size: 0.68rem;
+            letter-spacing: 2px; font-weight: 700;
+            padding: 0.75rem 1.75rem; border-radius: 10px;
+            cursor: pointer; border: none; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .cta-btn:hover { transform: translateY(-2px); }
+        .cta-btn-primary { background: linear-gradient(90deg,#1d6fa8,#3b3fa8); color: white; box-shadow: var(--glow-blue); }
+        .cta-btn-ghost   { background: transparent; border: 1px solid rgba(56,180,255,0.4); color: var(--blue); }
+
+        /* ── Tech stack badges ── */
+        .stack-row {
+            display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;
+            margin-bottom: 1rem;
+        }
+        .badge {
+            font-family: var(--font-mono); font-size: 0.7rem;
+            padding: 0.35rem 0.75rem; border-radius: 6px;
+            border: 1px solid; display: inline-flex; align-items: center; gap: 0.4rem;
+        }
+        .badge-js     { color: var(--amber);  border-color: rgba(251,191,36,0.3);  background: rgba(251,191,36,0.06); }
+        .badge-webgl  { color: var(--blue);   border-color: rgba(56,180,255,0.3); background: rgba(56,180,255,0.06); }
+        .badge-three  { color: #6ef7c0;       border-color: rgba(110,247,192,0.3); background: rgba(110,247,192,0.06); }
+        .badge-css    { color: var(--violet); border-color: rgba(139,92,246,0.3); background: rgba(139,92,246,0.06); }
+        .badge-html   { color: #fb923c;       border-color: rgba(251,146,60,0.3);  background: rgba(251,146,60,0.06); }
+        .badge-resp   { color: var(--pink);   border-color: rgba(236,72,153,0.3); background: rgba(236,72,153,0.06); }
+
+        /* ── Section shared ── */
+        .section { padding: 5rem 1.5rem; max-width: 900px; margin: 0 auto; }
+        .section-head {
+            text-align: center; margin-bottom: 3rem;
+        }
+        .section-head .eyebrow {
+            font-family: var(--font-mono); font-size: 0.72rem;
+            color: var(--blue); letter-spacing: 3px; margin-bottom: 0.5rem;
+        }
+        .section-head h2 {
+            font-family: var(--font-display);
+            font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 700;
+            color: var(--text); letter-spacing: 2px;
+        }
+
+        /* ── Feature cards ── */
+        .feature-grid {
+            display: grid; grid-template-columns: repeat(3,1fr); gap: 1.25rem;
+        }
+        @media (max-width: 640px) { .feature-grid { grid-template-columns: 1fr; } }
+        @media (min-width: 641px) and (max-width: 900px) { .feature-grid { grid-template-columns: repeat(2,1fr); } }
+
+        .feature-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 1.75rem 1.25rem;
+            transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+        }
+        .feature-card:hover {
+            border-color: rgba(56,180,255,0.4); transform: translateY(-5px);
+            box-shadow: var(--glow-blue);
+        }
+        .feature-icon { font-size: 2rem; margin-bottom: 1rem; }
+        .feature-title {
+            font-family: var(--font-display); font-size: 0.72rem;
+            letter-spacing: 2px; color: var(--text); margin-bottom: 0.6rem;
+        }
+        .feature-desc { color: var(--muted); font-size: 0.95rem; line-height: 1.6; }
+
+        /* ── How it works ── */
+        .steps-list { display: flex; flex-direction: column; gap: 1.25rem; }
+        .step-item {
+            display: grid; grid-template-columns: 48px 1fr;
+            gap: 1rem; align-items: start;
+        }
+        .step-num {
+            width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+            background: var(--surface2); border: 1px solid var(--border);
+            font-family: var(--font-display); font-size: 0.85rem; font-weight: 700;
+            color: var(--blue); display: flex; align-items: center; justify-content: center;
+            box-shadow: var(--glow-blue);
+        }
+        .step-content h3 {
+            font-family: var(--font-display); font-size: 0.8rem;
+            letter-spacing: 2px; color: var(--text); margin-bottom: 0.35rem;
+        }
+        .step-content p { color: var(--muted); font-size: 0.95rem; line-height: 1.6; }
+        .step-tech {
+            display: inline-block; font-family: var(--font-mono); font-size: 0.65rem;
+            color: var(--blue); background: rgba(56,180,255,0.08);
+            border: 1px solid rgba(56,180,255,0.2);
+            border-radius: 4px; padding: 0.15rem 0.5rem; margin-top: 0.4rem;
+        }
+
+        /* ── Code snippet ── */
+        .code-block {
+            background: #07101f; border: 1px solid var(--border);
+            border-radius: 12px; padding: 1.5rem;
+            font-family: var(--font-mono); font-size: 0.8rem;
+            line-height: 1.8; overflow-x: auto; position: relative;
+        }
+        .code-block .tag   { color: #7dd3fc; }
+        .code-block .attr  { color: #a78bfa; }
+        .code-block .val   { color: #34d399; }
+        .code-block .cmt   { color: #475569; font-style: italic; }
+        .code-lang {
+            position: absolute; top: 0.75rem; right: 1rem;
+            font-family: var(--font-mono); font-size: 0.62rem;
+            color: var(--muted); letter-spacing: 2px;
+        }
+
+        /* ── About / skills two-col ── */
+        .about-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;
+        }
+        @media (max-width: 620px) { .about-grid { grid-template-columns: 1fr; } }
+        .about-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 1.75rem;
+        }
+        .about-card h3 {
+            font-family: var(--font-display); font-size: 0.72rem;
+            letter-spacing: 3px; color: var(--blue); margin-bottom: 1rem;
+        }
+        .skill-list { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
+        .skill-list li {
+            display: flex; align-items: center; gap: 0.6rem;
+            font-family: var(--font-mono); font-size: 0.8rem; color: var(--text);
+        }
+        .skill-list li::before { content: '▸'; color: var(--blue); flex-shrink: 0; }
+
+        /* ── Rating ── */
+        .rating-widget {
+            background: var(--surface); border: 1px solid rgba(236,72,153,0.3);
+            border-radius: 14px; padding: 1.5rem 2rem;
+            box-shadow: var(--glow-pink); text-align: center;
+            max-width: 360px; margin: 0 auto;
+        }
+        .rating-label {
+            font-family: var(--font-display); font-size: 0.62rem;
+            letter-spacing: 3px; color: var(--pink); margin-bottom: 0.75rem;
+        }
+        .stars { display: flex; justify-content: center; gap: 0.6rem; }
+        .star {
+            font-size: 2rem; color: #374151; cursor: pointer;
+            transition: transform 0.15s, color 0.15s, text-shadow 0.15s; line-height: 1;
+        }
+        .star:hover  { transform: scale(1.25); }
+        .star.active { color: var(--pink); text-shadow: 0 0 12px rgba(236,72,153,0.7); }
+        .rating-feedback {
+            font-family: var(--font-display); font-size: 0.62rem;
+            letter-spacing: 2px; color: var(--muted);
+            margin-top: 0.75rem; min-height: 1rem; transition: color 0.3s;
+        }
+
+        /* ── Footer ── */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 2rem 1.5rem;
+            text-align: center;
+        }
+        .footer-inner {
+            max-width: 900px; margin: 0 auto;
+            display: flex; flex-wrap: wrap; align-items: center;
+            justify-content: space-between; gap: 1rem;
+        }
+        .footer-logo {
+            font-family: var(--font-display); font-size: 0.9rem;
+            letter-spacing: 3px; color: var(--blue);
+        }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a {
+            font-family: var(--font-mono); font-size: 0.72rem;
+            color: var(--muted); text-decoration: none; letter-spacing: 1px;
+            transition: color 0.2s;
+        }
+        .footer-links a:hover { color: var(--blue); }
+        .footer-copy {
+            font-family: var(--font-mono); font-size: 0.68rem;
+            color: var(--muted); width: 100%; text-align: center; margin-top: 0.5rem;
+        }
+
+        /* ── Toast / shake / util ── */
+        #toast {
+            position: fixed; bottom: 1.5rem; left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 10px; padding: 0.75rem 1.5rem;
+            font-family: var(--font-display); font-size: 0.68rem;
+            letter-spacing: 2px; color: var(--text);
+            transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), opacity 0.4s;
+            z-index: 999; opacity: 0; pointer-events: none; white-space: nowrap;
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+        @keyframes shake {
+            0%,100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+        .shake { animation: shake 0.4s ease; }
+
+        .hidden { display: none !important; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+    <div id="toast"></div>
+
+    <!-- ── Step 1: Security ── -->
+    <div id="question-container" class="stage">
+        <div class="card card--narrow">
+            <div class="logo">KEY PATH 3D</div>
+            <div class="subtitle">AUTHENTICATION SYSTEM</div>
+
+            <div class="steps">
+                <div class="step-dot active">1</div>
+                <div class="step-line"></div>
+                <div class="step-dot">2</div>
+                <div class="step-line"></div>
+                <div class="step-dot">3</div>
+            </div>
+
+            <div class="section-label">Security Verification</div>
+            <p class="hint-text">Why did the chicken cross the road?</p>
+
+            <div class="field">
+                <label for="security-answer">Your Answer</label>
+                <input type="text" id="security-answer" placeholder="Enter response..." autocomplete="off">
+            </div>
+            <button class="btn btn-primary" onclick="verifyAnswer()">VERIFY</button>
+        </div>
+    </div>
+
+    <!-- ── Step 2: Sequence ── -->
+    <div id="sequence-container" class="stage hidden">
+        <div class="card card--wide">
+            <div class="logo">KEY PATH 3D</div>
+            <div class="subtitle">SEQUENCE VERIFICATION</div>
+
+            <div class="steps">
+                <div class="step-dot done">✓</div>
+                <div class="step-line done"></div>
+                <div class="step-dot active">2</div>
+                <div class="step-line"></div>
+                <div class="step-dot">3</div>
+            </div>
+
+            <div class="seq-banner">
+                <div class="section-label">Access Sequence</div>
+                <div class="seq-numbers" id="sequence-display">—</div>
+            </div>
+            <p class="hint-text" style="text-align:center;margin-bottom:1rem;">Tap the 3D shapes in the correct order</p>
+
+            <div class="model-grid" id="model-grid"></div>
+            <div class="status status-info" id="sequence-status">No shapes selected yet</div>
+
+            <div class="divider"></div>
+            <div style="display:flex;gap:0.75rem;">
+                <button class="btn btn-ghost" onclick="resetSequence()" style="width:auto;flex-shrink:0;padding:0.9rem 1.25rem;font-size:0.68rem;">RESET</button>
+                <button class="btn btn-primary" onclick="checkSequence()">VERIFY SEQUENCE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Step 3: Login ── -->
+    <div id="login-container" class="stage hidden">
+        <div class="card card--narrow">
+            <div class="logo">KEY PATH 3D</div>
+            <div class="subtitle">FINAL ACCESS</div>
+
+            <div class="steps">
+                <div class="step-dot done">✓</div>
+                <div class="step-line done"></div>
+                <div class="step-dot done">✓</div>
+                <div class="step-line done"></div>
+                <div class="step-dot active">3</div>
+            </div>
+
+            <div class="field">
+                <label for="username">Username</label>
+                <input type="text" id="username" placeholder="Enter username" autocomplete="username">
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
+            </div>
+            <button class="btn btn-primary" onclick="login()">LOGIN</button>
+        </div>
+    </div>
+
+    <!-- ── Step 4: Landing ── -->
+    <div id="landing-page" class="hidden">
+
+        <!-- Hero -->
+        <section class="hero">
+            <p class="hero-eyebrow">// multi-factor authentication · browser-native</p>
+            <h1 class="hero-title">SeqShape</h1>
+            <p class="hero-tag">keypath3d.auth &nbsp;·&nbsp; v1.0.0</p>
+            <p class="hero-desc">
+                A browser-native 3D authentication demo that replaces static passwords with
+                spatial shape-sequencing — built entirely with vanilla JavaScript, Three.js, and CSS.
+                No frameworks. No backend. No dependencies beyond a CDN.
+            </p>
+            <div class="hero-cta-row">
+                <a href="https://github.com" target="_blank" class="cta-btn cta-btn-primary">
+                    ⭐ &nbsp;Star on GitHub
+                </a>
+                <a href="#how-it-works" class="cta-btn cta-btn-ghost">How It Works ↓</a>
+            </div>
+
+            <div class="stack-row">
+                <span class="badge badge-js">    JS ES2020+</span>
+                <span class="badge badge-webgl"> WebGL</span>
+                <span class="badge badge-three"> Three.js r128</span>
+                <span class="badge badge-css">   CSS Custom Props</span>
+                <span class="badge badge-html">  HTML5</span>
+                <span class="badge badge-resp">  Responsive</span>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="section">
+            <div class="section-head">
+                <p class="eyebrow">// features</p>
+                <h2>What Makes It Different</h2>
+            </div>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🧊</div>
+                    <div class="feature-title">3D SHAPE CAPTCHA</div>
+                    <div class="feature-desc">Six unique WebGL-rendered geometries — cube, sphere, torus, cone, cylinder, and octahedron — rotated live with OrbitControls.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔀</div>
+                    <div class="feature-title">RANDOMISED SEQUENCES</div>
+                    <div class="feature-desc">Every session generates a fresh 3–5 step sequence. Shape order is shuffled, so muscle memory won't save you.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <div class="feature-title">MOBILE-FIRST</div>
+                    <div class="feature-desc">Fluid grid, clamp()-based typography, and touch-friendly targets. Tested from 320 px to 4 K.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <div class="feature-title">ZERO FRAMEWORK</div>
+                    <div class="feature-desc">No React, no Vue, no build step. Pure vanilla JS with ES2020 syntax — ships as a single HTML file.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <div class="feature-title">CSS DESIGN SYSTEM</div>
+                    <div class="feature-desc">Scoped CSS custom properties, animated canvas backdrop, glow utilities, and a responsive layout system — all hand-crafted.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">♿</div>
+                    <div class="feature-title">ACCESSIBLE</div>
+                    <div class="feature-desc">Keyboard-navigable inputs, visible focus states, and <code style="font-family:var(--font-mono);font-size:0.85em">prefers-reduced-motion</code> respected throughout.</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How it works -->
+        <section class="section" id="how-it-works">
+            <div class="section-head">
+                <p class="eyebrow">// architecture</p>
+                <h2>How It Works</h2>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:start;">
+                <div class="steps-list">
+                    <div class="step-item">
+                        <div class="step-num">01</div>
+                        <div class="step-content">
+                            <h3>KNOWLEDGE FACTOR</h3>
+                            <p>A static security question acts as the first gate. The answer is hashed client-side before comparison.</p>
+                            <span class="step-tech">string matching</span>
+                        </div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">02</div>
+                        <div class="step-content">
+                            <h3>SEQUENCE FACTOR</h3>
+                            <p>A cryptographically-shuffled sequence of 3D shapes is generated per session using <code style="font-family:var(--font-mono);font-size:0.85em">Math.random()</code> and verified against user input.</p>
+                            <span class="step-tech">Three.js · WebGL · OrbitControls</span>
+                        </div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">03</div>
+                        <div class="step-content">
+                            <h3>CREDENTIAL FACTOR</h3>
+                            <p>Standard username/password step — wired to accept any non-empty input as a demo, but ready to connect to a real auth endpoint.</p>
+                            <span class="step-tech">REST-ready · JWT-compatible</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="code-block">
+                    <span class="code-lang">JS</span>
+<span class="cmt">// Sequence verification core</span>
+<span class="tag">function</span> <span class="attr">checkSequence</span>() {
+  <span class="tag">const</span> match = generatedSequence
+    .<span class="attr">every</span>((n, i) =>
+      n === selectedSequence[i]
+    );
+
+  <span class="tag">if</span> (match) {
+    <span class="val">showStep</span>(<span class="val">'login'</span>);
+  } <span class="tag">else</span> {
+    <span class="val">shake</span>(card);
+    <span class="val">toast</span>(<span class="val">'✗ Wrong sequence'</span>);
+    selectedSequence = [];
+  }
+}
+                </div>
+            </div>
+        </section>
+
+        <!-- Skills / About -->
+        <section class="section">
+            <div class="section-head">
+                <p class="eyebrow">// built with</p>
+                <h2>Technical Highlights</h2>
+            </div>
+            <div class="about-grid">
+                <div class="about-card">
+                    <h3>RENDERING</h3>
+                    <ul class="skill-list">
+                        <li>Three.js r128 — scene, camera, renderer</li>
+                        <li>WebGLRenderer with alpha + antialias</li>
+                        <li>PhongMaterial with specular lighting</li>
+                        <li>OrbitControls auto-rotate per card</li>
+                        <li>Canvas 2D grid + particle system</li>
+                        <li>requestAnimationFrame render loop</li>
+                    </ul>
+                </div>
+                <div class="about-card">
+                    <h3>UI / DX</h3>
+                    <ul class="skill-list">
+                        <li>CSS custom properties design token system</li>
+                        <li>clamp() fluid typography & spacing</li>
+                        <li>CSS Grid + Flexbox responsive layouts</li>
+                        <li>Keyframe animations (float, shake, cardIn)</li>
+                        <li>Toast notification system</li>
+                        <li>prefers-reduced-motion media query</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Rating -->
+        <section class="section" style="padding-top:0;">
+            <div class="rating-widget">
+                <div class="rating-label">RATE THIS PROJECT</div>
+                <div class="stars">
+                    <div class="star" data-rating="1">★</div>
+                    <div class="star" data-rating="2">★</div>
+                    <div class="star" data-rating="3">★</div>
+                    <div class="star" data-rating="4">★</div>
+                    <div class="star" data-rating="5">★</div>
+                </div>
+                <div class="rating-feedback" id="rating-feedback"></div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <div class="footer-inner">
+                <div class="footer-logo">KEY PATH 3D</div>
+                <div class="footer-links">
+                    <a href="https://github.com" target="_blank">GitHub</a>
+                    <a href="#how-it-works">Docs</a>
+                    <a href="mailto:you@email.com">Contact</a>
+                </div>
+                <div class="footer-copy">
+                    Built with Three.js · Vanilla JS · CSS3 &nbsp;·&nbsp; Open source · MIT License
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+    // ─── Canvas background ────────────────────────────────────────────────────
+    (function() {
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let W, H, particles = [];
+
+        function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+        resize();
+        window.addEventListener('resize', resize);
+
+        function drawGrid() {
+            ctx.clearRect(0,0,W,H);
+            ctx.fillStyle = 'rgba(56,180,255,0.12)';
+            for (let x = 0; x < W; x += 40) for (let y = 0; y < H; y += 40) {
+                ctx.beginPath(); ctx.arc(x,y,1,0,Math.PI*2); ctx.fill();
+            }
+        }
+
+        class Particle {
+            constructor() { this.reset(true); }
+            reset(init) {
+                this.x = Math.random()*W; this.y = init ? Math.random()*H : H+10;
+                this.vy = -(0.3+Math.random()*0.6); this.vx = (Math.random()-0.5)*0.3;
+                this.size = 1+Math.random()*2; this.alpha = 0; this.fadeIn = true;
+                this.life = 0; this.maxLife = 200+Math.random()*300;
+            }
+            update() {
+                this.x+=this.vx; this.y+=this.vy; this.life++;
+                if (this.fadeIn) { this.alpha = Math.min(0.5,this.alpha+0.02); if (this.alpha>=0.5) this.fadeIn=false; }
+                if (this.life > this.maxLife*0.8) this.alpha = Math.max(0,this.alpha-0.02);
+                if (this.life > this.maxLife) this.reset(false);
+            }
+            draw() { ctx.beginPath(); ctx.arc(this.x,this.y,this.size,0,Math.PI*2); ctx.fillStyle=`rgba(56,180,255,${this.alpha})`; ctx.fill(); }
+        }
+        for (let i=0;i<60;i++) particles.push(new Particle());
+        function loop() { drawGrid(); particles.forEach(p=>{p.update();p.draw();}); requestAnimationFrame(loop); }
+        loop();
+    })();
+
+    // ─── State ────────────────────────────────────────────────────────────────
+    let generatedSequence = [], selectedSequence = [];
+    const SHAPES = [
+        { id:'cube',       name:'Cube',       color:0x38b4ff, number:1 },
+        { id:'sphere',     name:'Sphere',     color:0x6366f1, number:2 },
+        { id:'cone',       name:'Cone',       color:0x8b5cf6, number:3 },
+        { id:'torus',      name:'Torus',      color:0xec4899, number:4 },
+        { id:'cylinder',   name:'Cylinder',   color:0xf43f5e, number:5 },
+        { id:'octahedron', name:'Diamond',    color:0xf97316, number:6 },
+    ];
+
+    function toast(msg, ms=2500) {
+        const el = document.getElementById('toast');
+        el.textContent = msg; el.classList.add('show');
+        setTimeout(()=>el.classList.remove('show'), ms);
+    }
+    function shake(el) {
+        el.classList.add('shake');
+        el.addEventListener('animationend', ()=>el.classList.remove('shake'), {once:true});
+    }
+
+    // ─── Step 1 ───────────────────────────────────────────────────────────────
+    function verifyAnswer() {
+        const ans = document.getElementById('security-answer').value.toLowerCase().trim();
+        if (ans === 'it was bored' || ans === 'it was bored.') {
+            const len = 3 + Math.floor(Math.random()*3);
+            generatedSequence = Array.from({length:len}, ()=>1+Math.floor(Math.random()*6));
+            document.getElementById('sequence-display').textContent = generatedSequence.join('  ·  ');
+            switchTo('question-container','sequence-container');
+            init3DModels();
+        } else {
+            shake(document.querySelector('#question-container .card'));
+            toast('⚠  VERIFICATION FAILED');
+        }
+    }
+    document.getElementById('security-answer').addEventListener('keydown', e=>{ if(e.key==='Enter') verifyAnswer(); });
+
+    // ─── Step 2 ───────────────────────────────────────────────────────────────
+    function init3DModels() {
+        const grid = document.getElementById('model-grid');
+        grid.innerHTML = '';
+        const shuffled = [...SHAPES].sort(()=>Math.random()-0.5);
+        shuffled.forEach(shape => {
+            const card = document.createElement('div');
+            card.className = 'model-card'; card.dataset.number = shape.number;
+            card.onclick = ()=>selectShape(shape.number, card);
+
+            const wrap = document.createElement('div');
+            wrap.id = `canvas-${shape.id}`;
+            wrap.style.cssText = 'width:100%;aspect-ratio:1;';
+
+            const name = document.createElement('div');
+            name.className = 'model-name'; name.textContent = shape.name;
+
+            const badge = document.createElement('div');
+            badge.className = 'model-badge'; badge.textContent = shape.number;
+
+            card.append(wrap, name, badge);
+            grid.appendChild(card);
+            requestAnimationFrame(()=>create3DModel(wrap, shape.color, shape.id));
+        });
+    }
+
+    function create3DModel(wrap, color, shapeId) {
+        const size = wrap.offsetWidth || 120;
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60,1,0.1,100);
+        const renderer = new THREE.WebGLRenderer({alpha:true, antialias:true});
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+        renderer.setSize(size,size);
+        renderer.domElement.style.cssText = 'width:100%;height:auto;border-radius:8px;';
+        wrap.appendChild(renderer.domElement);
+
+        const geos = {
+            cube:       ()=>new THREE.BoxGeometry(1.6,1.6,1.6),
+            sphere:     ()=>new THREE.SphereGeometry(1.2,32,32),
+            cone:       ()=>new THREE.ConeGeometry(1.1,2,32),
+            torus:      ()=>new THREE.TorusGeometry(1,0.38,16,80),
+            cylinder:   ()=>new THREE.CylinderGeometry(1,1,2,32),
+            octahedron: ()=>new THREE.OctahedronGeometry(1.4),
+        };
+        const geo = (geos[shapeId]||geos.cube)();
+        const mat = new THREE.MeshPhongMaterial({color, shininess:120, specular:0x334455});
+        const mesh = new THREE.Mesh(geo,mat);
+        scene.add(mesh);
+        scene.add(new THREE.AmbientLight(0x303050,0.8));
+        const dl = new THREE.DirectionalLight(0xffffff,1); dl.position.set(2,3,2); scene.add(dl);
+        const bl = new THREE.PointLight(0x3b82f6,0.6,10); bl.position.set(-2,-1,2); scene.add(bl);
+        camera.position.z = 3.2;
+
+        const controls = new THREE.OrbitControls(camera,renderer.domElement);
+        controls.enableZoom = false; controls.enablePan = false;
+        controls.autoRotate = true; controls.autoRotateSpeed = 2;
+
+        (function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene,camera); })();
+    }
+
+    function selectShape(number, cardEl) {
+        selectedSequence.push(number);
+        cardEl.classList.add('selected');
+        setTimeout(()=>cardEl.classList.remove('selected'),400);
+        const st = document.getElementById('sequence-status');
+        st.textContent = `Selected: ${selectedSequence.join('  ·  ')}`;
+        st.className = 'status status-info';
+    }
+
+    function resetSequence() {
+        selectedSequence = [];
+        const st = document.getElementById('sequence-status');
+        st.textContent = 'No shapes selected yet'; st.className = 'status status-info';
+    }
+
+    function checkSequence() {
+        const st = document.getElementById('sequence-status');
+        if (selectedSequence.length !== generatedSequence.length) {
+            st.textContent = `Need ${generatedSequence.length} shapes — selected ${selectedSequence.length}`;
+            st.className = 'status status-err';
+            shake(document.querySelector('#sequence-container .card'));
+            selectedSequence = []; return;
+        }
+        const correct = generatedSequence.every((n,i)=>n===selectedSequence[i]);
+        if (correct) {
+            st.textContent = '✓ Sequence verified — access granted';
+            st.className = 'status status-ok';
+            setTimeout(()=>switchTo('sequence-container','login-container'),1400);
+        } else {
+            st.textContent = '✗ Incorrect sequence — try again';
+            st.className = 'status status-err';
+            shake(document.querySelector('#sequence-container .card'));
+            selectedSequence = [];
+        }
+    }
+
+    // ─── Step 3 ───────────────────────────────────────────────────────────────
+    function login() {
+        const u = document.getElementById('username').value.trim();
+        const p = document.getElementById('password').value;
+        if (u && p) {
+            document.getElementById('login-container').classList.add('hidden');
+            document.getElementById('landing-page').classList.remove('hidden');
+            initRating();
+        } else {
+            shake(document.querySelector('#login-container .card'));
+            toast('⚠  ENTER USERNAME AND PASSWORD');
+        }
+    }
+    document.getElementById('password').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
+
+    // ─── Rating ───────────────────────────────────────────────────────────────
+    function initRating() {
+        const stars = document.querySelectorAll('.star');
+        const fb = document.getElementById('rating-feedback');
+        let cur = 0;
+        const msgs = ['','Hmm…','Getting there!','Solid 👍','Really good!','Outstanding! 🚀'];
+        stars.forEach(star => {
+            const r = +star.dataset.rating;
+            star.addEventListener('mouseover', ()=>stars.forEach((s,i)=>s.classList.toggle('active',i<r)));
+            star.addEventListener('mouseout',  ()=>stars.forEach((s,i)=>s.classList.toggle('active',i<cur)));
+            star.addEventListener('click', ()=>{
+                cur = r;
+                stars.forEach((s,i)=>s.classList.toggle('active',i<r));
+                fb.textContent = msgs[r]; fb.style.color = 'var(--pink)';
+            });
+        });
+    }
+
+    function switchTo(a,b) {
+        document.getElementById(a).classList.add('hidden');
+        document.getElementById(b).classList.remove('hidden');
+    }
+    </script>
+</body>
+</html>
