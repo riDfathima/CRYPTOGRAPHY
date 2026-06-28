@@ -16,3 +16,5 @@ A lightweight, browser-native 3D Multi-Factor Authentication (MFA) demo. It repl
 ## 📁 Getting Started
 
 ## Live Demo
+https://frabjous-axolotl-a51f97.netlify.app
+* **The Password** is **"it was bored"**
